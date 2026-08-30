@@ -12,7 +12,36 @@ This slice establishes a deployable service boundary only:
 - container and Helm packaging for local Kubernetes SIT;
 - Maven verification with Spotless, JaCoCo, Surefire, and Failsafe.
 
-Notification templates, delivery providers, Kafka consumers, retries, persistence, and user-facing notification behavior are future work. No notification business endpoint is exposed by this scaffold.
+Notification templates, delivery providers, Kafka consumers, provider-backed retry execution, persistence, and user-facing notification behavior are future work. No notification business endpoint is exposed by this scaffold.
+
+## Delivery Lifecycle Foundation
+
+The transport-neutral application boundary is exposed by
+`NotificationDeliveryInputPort` and implemented by `NotificationDeliveryService`.
+It currently accepts a delivery request containing:
+
+- a correlation ID that links the notification to a business workflow such as a transfer;
+- an idempotency key that identifies one logical notification request;
+- a channel, recipient, and template ID.
+
+The service normalizes the request before comparing it. Repeating the same
+request with the same idempotency key returns the original delivery ID and
+marks the result as a replay. Reusing that key for a different request is
+rejected as an idempotency conflict. This is process-local foundation logic;
+durable idempotency storage will be added with the future notification
+persistence and event-consumer work.
+
+Delivery outcomes are explicit:
+
+- `DELIVERED` is terminal success;
+- `RETRYABLE_FAILURE` represents provider unavailability, throttling, or timeout;
+- `TERMINAL_FAILURE` represents an invalid recipient, rejected template, or unsupported channel.
+
+A retryable failure may be followed by another attempt. A delivered or
+terminally failed delivery cannot be changed by a later attempt. Provider
+adapters will classify real provider responses and call this boundary in a
+future slice. No provider credentials, message content, Kafka consumer, or
+external delivery call belongs in this foundation.
 
 ## Responsibilities And Boundaries
 
