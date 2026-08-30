@@ -15,6 +15,7 @@ spec:
       labels:
         {{- include "notification-service.selectorLabels" . | nindent 8 }}
     spec:
+      automountServiceAccountToken: false
       terminationGracePeriodSeconds: {{ .Values.terminationGracePeriodSeconds }}
       securityContext:
         {{- toYaml .Values.podSecurityContext | nindent 8 }}

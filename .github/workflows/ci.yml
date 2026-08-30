@@ -14,8 +14,8 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  verify:
-    name: Maven verification
+  test:
+    name: Maven test phases
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -27,8 +27,10 @@ jobs:
           distribution: temurin
           java-version: "21"
           cache: maven
-      - name: Run Maven verification
-        run: ./mvnw --batch-mode --no-transfer-progress verify
+      - name: Run unit tests
+        run: ./mvnw --batch-mode --no-transfer-progress test
+      - name: Run integration and package verification
+        run: ./mvnw --batch-mode --no-transfer-progress verify -DskipUnitTests=true
       - name: Check formatting
         run: git diff --check
 
@@ -56,7 +58,7 @@ jobs:
   container:
     name: Container build and smoke test
     needs:
-      - verify
+      - test
       - helm
     runs-on: ubuntu-latest
     timeout-minutes: 15
@@ -97,7 +99,7 @@ jobs:
               "label": None,
               "version": "ci",
               "state": None,
-              "propertySources": [{"name": "ci", "source": {"server.port": 8088}}],
+              "propertySources": [{"name": "ci", "source": {}}],
           }).encode()
 
           class Handler(BaseHTTPRequestHandler):
