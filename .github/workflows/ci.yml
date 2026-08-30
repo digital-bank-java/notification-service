@@ -54,6 +54,7 @@ jobs:
             --values helm/values-sit.yaml \
             --set image.tag="${GITHUB_SHA}" > rendered.yaml
           test -s rendered.yaml
+          grep -A1 -E '^            - name: SERVER_PORT$' rendered.yaml | grep -q 'value: "8088"'
 
   container:
     name: Container build and smoke test
@@ -99,7 +100,7 @@ jobs:
               "label": None,
               "version": "ci",
               "state": None,
-              "propertySources": [{"name": "ci", "source": {}}],
+              "propertySources": [{"name": "ci", "source": {"server.port": 9099}}],
           }).encode()
 
           class Handler(BaseHTTPRequestHandler):
@@ -130,6 +131,7 @@ jobs:
             --network host \
             --env CONFIG_SERVER_URL=http://127.0.0.1:8888 \
             --env SPRING_PROFILES_ACTIVE=sit \
+            --env SERVER_PORT=8088 \
             digital-bank-java/notification-service:ci
 
           ready=false

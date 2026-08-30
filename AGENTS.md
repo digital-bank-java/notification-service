@@ -23,8 +23,10 @@ Use `sit`, `uat`, and `prod` as the formal runtime profiles. SIT runs on local D
 Keep notification policy and orchestration in application/domain code. HTTP and future Kafka consumers are inbound adapters. Provider clients and persistence are outbound adapters. Kafka consumer behavior is separate from this bootstrap.
 
 The service name and Config Server application name are
-`notification-service`. The default and SIT HTTP port is `8088`; Config Server
-may override it for a formal runtime environment.
+`notification-service`. The default and SIT HTTP port is `8088`. Helm passes
+its `service.port` as `SERVER_PORT`, so the deployment port is authoritative
+even when Config Server is reachable; config-repo should keep its matching
+`server.port` default for non-Helm startup.
 
 ## Local Commands
 

@@ -38,8 +38,12 @@ server.port=8088
 The formal environments are `sit`, `uat`, and `prod`. Local Kubernetes SIT uses the `sit` profile. Credentials, provider keys, and tokens must be supplied by deployment secrets and must never be committed here.
 
 The service defaults to port `8088` so the Helm package remains compatible
-before service-specific Config Server files are added. Config Server remains a
-required dependency for normal startup and may override runtime properties.
+before service-specific Config Server files are added. Helm passes its
+`service.port` value to the process as `SERVER_PORT`; that deployment value is
+authoritative over Config Server `server.port`, keeping the process, Service,
+and probes aligned. Config-repo should retain the same `server.port` default
+for non-Helm startup. Config Server remains a required dependency for normal
+startup and may provide other runtime properties.
 
 ## Prerequisites
 
@@ -65,7 +69,8 @@ git diff --check
 
 CI runs the unit phase, Failsafe integration/package verification, Helm lint
 and rendering, formatting validation, and a container health/OpenAPI smoke
-test against a mocked Config Server response.
+test against a mocked Config Server response that deliberately conflicts on
+`server.port` while the Helm-equivalent `SERVER_PORT=8088` is set.
 
 ## Container
 

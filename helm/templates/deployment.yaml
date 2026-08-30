@@ -30,6 +30,8 @@ spec:
               value: {{ .Values.runtime.profile | quote }}
             - name: CONFIG_SERVER_URL
               value: {{ .Values.runtime.configServerUrl | quote }}
+            - name: SERVER_PORT
+              value: {{ .Values.service.port | quote }}
           ports:
             - name: http
               containerPort: {{ .Values.service.port }}
