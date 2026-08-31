@@ -1,0 +1,8 @@
+package com.digitalbank.notificationservice.adapter.in.kafka;
+
+public class InvalidTransferEventException extends RuntimeException {
+
+    public InvalidTransferEventException(String message) {
+        super(message);
+    }
+}

@@ -32,6 +32,16 @@ spec:
               value: {{ .Values.runtime.configServerUrl | quote }}
             - name: SERVER_PORT
               value: {{ .Values.service.port | quote }}
+            - name: NOTIFICATION_TRANSFER_EVENTS_ENABLED
+              value: {{ .Values.kafka.transferCreated.enabled | quote }}
+            - name: NOTIFICATION_TRANSFER_EVENTS_TOPIC
+              value: {{ .Values.kafka.transferCreated.topic | quote }}
+            - name: NOTIFICATION_EVENTS_ALLOWED_PRODUCERS
+              value: {{ .Values.kafka.allowedProducers | quote }}
+            - name: KAFKA_BOOTSTRAP_SERVERS
+              value: {{ .Values.kafka.bootstrapServers | quote }}
+            - name: KAFKA_CONSUMER_GROUP_ID
+              value: {{ .Values.kafka.consumerGroup | quote }}
           ports:
             - name: http
               containerPort: {{ .Values.service.port }}
