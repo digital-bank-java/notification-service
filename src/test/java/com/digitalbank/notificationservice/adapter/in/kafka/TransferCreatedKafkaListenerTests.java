@@ -3,9 +3,13 @@ package com.digitalbank.notificationservice.adapter.in.kafka;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-import com.digitalbank.notificationservice.application.event.TransferCreatedEventConsumerService;
+import com.digitalbank.notificationservice.application.event.TransferCreatedEventConsumer;
 import com.digitalbank.notificationservice.application.event.TransferEventConsumptionResult;
+import com.digitalbank.notificationservice.application.event.TransferEventQuarantine;
+import com.digitalbank.notificationservice.application.event.TransferEventQuarantinePort;
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Optional;
 import java.util.Set;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
@@ -16,7 +20,7 @@ import org.junit.jupiter.api.Test;
 class TransferCreatedKafkaListenerTests {
 
     private final TransferCreatedKafkaListener listener =
-            new TransferCreatedKafkaListener(new TransferCreatedEventConsumerService(), Set.of("transaction-service"));
+            new TransferCreatedKafkaListener(new InMemoryConsumer(), Set.of("transaction-service"));
 
     @Test
     void mapsVersionedKafkaEnvelopeToTransportNeutralConsumer() {
@@ -65,6 +69,21 @@ class TransferCreatedKafkaListenerTests {
         assertThatThrownBy(() -> listener.onMessage(record)).isInstanceOf(InvalidTransferEventException.class);
     }
 
+    @Test
+    void invalidRecordIsSentToQuarantineWithoutApplicationConsumption() {
+        var quarantine = new InMemoryQuarantine();
+        var listener =
+                new TransferCreatedKafkaListener(new InMemoryConsumer(), Set.of("transaction-service"), quarantine);
+        var record = record("evt-1", "transfer-1", "request-1", "");
+
+        assertThatThrownBy(() -> listener.onMessage(record)).isInstanceOf(InvalidTransferEventException.class);
+        assertThat(quarantine.records()).singleElement().satisfies(entry -> {
+            assertThat(entry.eventId()).isEqualTo("evt-1");
+            assertThat(entry.topic()).isEqualTo("events.transfer.created.v1");
+            assertThat(entry.reason()).contains("payload");
+        });
+    }
+
     private ConsumerRecord<String, String> record(
             String eventId, String correlationId, String causationId, String payload) {
         var headers = new RecordHeaders()
@@ -90,5 +109,32 @@ class TransferCreatedKafkaListenerTests {
 
     private byte[] bytes(String value) {
         return value.getBytes(StandardCharsets.UTF_8);
+    }
+
+    private static class InMemoryConsumer implements TransferCreatedEventConsumer {
+
+        private final Set<String> consumed = new java.util.HashSet<>();
+
+        @Override
+        public TransferEventConsumptionResult consume(
+                com.digitalbank.notificationservice.application.event.TransferCreatedEvent event) {
+            var replayed = !consumed.add(event.eventId());
+            return new TransferEventConsumptionResult(
+                    event.eventId(), event.correlationId(), event.causationId(), replayed);
+        }
+    }
+
+    private static class InMemoryQuarantine implements TransferEventQuarantinePort {
+
+        private final List<TransferEventQuarantine> records = new ArrayList<>();
+
+        @Override
+        public void quarantine(TransferEventQuarantine record) {
+            records.add(record);
+        }
+
+        List<TransferEventQuarantine> records() {
+            return records;
+        }
     }
 }
