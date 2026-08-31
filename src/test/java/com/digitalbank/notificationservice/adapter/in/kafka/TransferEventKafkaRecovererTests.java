@@ -44,6 +44,22 @@ class TransferEventKafkaRecovererTests {
         assertThat(quarantine.records()).isEmpty();
     }
 
+    @Test
+    void handlesCyclicCauseChainWithoutHanging() {
+        var quarantine = new InMemoryQuarantine();
+        var recoverer = new TransferEventKafkaRecoverer(quarantine);
+        var first = new IllegalStateException("first failure");
+        var second = new IllegalArgumentException("root failure");
+        first.initCause(second);
+        second.initCause(first);
+
+        recoverer.accept(record(), first);
+
+        assertThat(quarantine.records()).singleElement().satisfies(entry -> {
+            assertThat(entry.reason()).contains("IllegalArgumentException", "root failure");
+        });
+    }
+
     private ConsumerRecord<String, String> record() {
         var headers = new RecordHeaders()
                 .add("event-id", bytes("evt-1"))
