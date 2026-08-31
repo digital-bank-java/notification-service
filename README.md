@@ -14,8 +14,8 @@ This slice establishes a deployable service boundary only:
 - Maven verification with Spotless, JaCoCo, Surefire, and Failsafe.
 
 Notification templates, delivery providers, provider-backed retry execution,
-persistence, and user-facing notification behavior are future work. No
-notification business endpoint is exposed by this scaffold.
+and user-facing notification behavior are future work. No notification
+business endpoint is exposed by this scaffold.
 
 ## Delivery Lifecycle Foundation
 
@@ -60,10 +60,16 @@ handing the event to the application boundary:
 - `occurred-at` must be an ISO-8601 timestamp.
 
 The consumer reports an exact duplicate as a replay and rejects a reused event
-ID with different content as a conflict. The current consumed-event registry
-is process-local foundation state. Durable inbox storage, notification
-construction, provider delivery, and dead-letter persistence belong to later
-tracked work after the governed event schema is finalized.
+ID with different content as a conflict. The accepted event identity and
+fingerprint are stored in PostgreSQL, so replay detection survives process
+restarts. Accepted events also create durable notification work in the same
+transaction. Conflicting or invalid events cross an explicit quarantine
+boundary that stores identifiers, hashes, Kafka metadata, and a reason, but
+never the raw event payload.
+
+Notification construction, provider delivery, and provider-backed retry
+execution remain later tracked work after the governed event schema is
+finalized.
 
 Enable consumption explicitly with the Helm SIT values or equivalent
 environment variables:
@@ -75,6 +81,11 @@ NOTIFICATION_EVENTS_ALLOWED_PRODUCERS=transaction-service
 KAFKA_BOOTSTRAP_SERVERS=kafka.digital-bank-sit.svc.cluster.local:9092
 KAFKA_CONSUMER_GROUP_ID=notification-service
 ```
+
+The Kafka listener is disabled by default. Enabling it requires the PostgreSQL
+connection used by the service and a reachable Kafka broker. Invalid input is
+recorded through the durable quarantine port before the listener error is
+returned to Kafka error handling.
 
 ## Responsibilities And Boundaries
 
@@ -114,6 +125,8 @@ startup and may provide other runtime properties.
 - Helm 4.
 - `kubectl` for Kubernetes dry-run and rollout checks.
 - A running Config Server for normal application startup.
+- PostgreSQL for normal runtime startup; Flyway creates the inbox, notification
+  work, and quarantine tables.
 
 The Maven Wrapper is included, so a global Maven installation is not needed.
 
@@ -133,6 +146,11 @@ CI runs the unit phase, Failsafe integration/package verification, Helm lint
 and rendering, formatting validation, and a container health/OpenAPI smoke
 test against a mocked Config Server response that deliberately conflicts on
 `server.port` while the Helm-equivalent `SERVER_PORT=8088` is set.
+
+The integration suite starts PostgreSQL with Testcontainers and verifies
+durable replay, concurrent duplicate delivery, conflict quarantine, health,
+and OpenAPI metadata. Testcontainers is a test dependency only; production
+uses the PostgreSQL service supplied by the deployment environment.
 
 ## Container
 

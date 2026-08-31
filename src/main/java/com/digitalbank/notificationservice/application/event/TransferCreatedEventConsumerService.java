@@ -1,41 +1,46 @@
 package com.digitalbank.notificationservice.application.event;
 
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ConcurrentMap;
-import java.util.concurrent.atomic.AtomicBoolean;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 @Service
 public class TransferCreatedEventConsumerService implements TransferCreatedEventConsumer {
 
-    private final ConcurrentMap<String, ConsumedEvent> consumedEvents = new ConcurrentHashMap<>();
+    private final TransferEventInboxPort inbox;
+    private final NotificationWorkPort notificationWork;
+    private final TransferEventQuarantinePort quarantine;
+
+    public TransferCreatedEventConsumerService(
+            TransferEventInboxPort inbox,
+            NotificationWorkPort notificationWork,
+            TransferEventQuarantinePort quarantine) {
+        this.inbox = inbox;
+        this.notificationWork = notificationWork;
+        this.quarantine = quarantine;
+    }
 
     @Override
+    @Transactional
     public TransferEventConsumptionResult consume(TransferCreatedEvent event) {
         if (event == null) {
             throw new IllegalArgumentException("event must not be null");
         }
 
-        var replayed = new AtomicBoolean(false);
-        var consumed = consumedEvents.compute(event.eventId(), (eventId, existing) -> {
-            if (existing == null) {
-                return new ConsumedEvent(event.fingerprint(), result(event, false));
-            }
-            if (!existing.fingerprint().equals(event.fingerprint())) {
+        inbox.lock(event.eventId());
+        var existing = inbox.findByEventId(event.eventId());
+        if (existing.isPresent()) {
+            var accepted = existing.get();
+            if (!accepted.fingerprint().equals(event.fingerprint())) {
+                quarantine.quarantine(TransferEventQuarantine.fromEvent(
+                        event, "eventId is already associated with a different fingerprint"));
                 throw new TransferEventConflictException("eventId is already associated with a different event");
             }
-            replayed.set(true);
-            return existing;
-        });
-        var original = consumed.result();
-        return new TransferEventConsumptionResult(
-                original.eventId(), original.correlationId(), original.causationId(), replayed.get());
-    }
+            return new TransferEventConsumptionResult(
+                    accepted.eventId(), accepted.correlationId(), accepted.causationId(), true);
+        }
 
-    private TransferEventConsumptionResult result(TransferCreatedEvent event, boolean replayed) {
-        return new TransferEventConsumptionResult(
-                event.eventId(), event.correlationId(), event.causationId(), replayed);
+        inbox.save(TransferEventInbox.acceptedFrom(event));
+        notificationWork.createIfAbsent(NotificationWork.from(event));
+        return new TransferEventConsumptionResult(event.eventId(), event.correlationId(), event.causationId(), false);
     }
-
-    private record ConsumedEvent(String fingerprint, TransferEventConsumptionResult result) {}
 }

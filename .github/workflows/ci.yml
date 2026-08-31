@@ -63,6 +63,20 @@ jobs:
       - helm
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_DB: notification_service
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d notification_service"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
     steps:
       - name: Check out repository
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
@@ -132,6 +146,9 @@ jobs:
             --env CONFIG_SERVER_URL=http://127.0.0.1:8888 \
             --env SPRING_PROFILES_ACTIVE=sit \
             --env SERVER_PORT=8088 \
+            --env SPRING_DATASOURCE_URL=jdbc:postgresql://127.0.0.1:5432/notification_service \
+            --env SPRING_DATASOURCE_USERNAME=postgres \
+            --env SPRING_DATASOURCE_PASSWORD=postgres \
             digital-bank-java/notification-service:ci
 
           ready=false

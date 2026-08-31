@@ -3,6 +3,8 @@ package com.digitalbank.notificationservice.adapter.in.kafka;
 import com.digitalbank.notificationservice.application.event.TransferCreatedEvent;
 import com.digitalbank.notificationservice.application.event.TransferCreatedEventConsumer;
 import com.digitalbank.notificationservice.application.event.TransferEventConsumptionResult;
+import com.digitalbank.notificationservice.application.event.TransferEventQuarantine;
+import com.digitalbank.notificationservice.application.event.TransferEventQuarantinePort;
 import java.time.Instant;
 import java.util.Arrays;
 import java.util.Set;
@@ -29,17 +31,27 @@ public class TransferCreatedKafkaListener {
 
     private final TransferCreatedEventConsumer consumer;
     private final Set<String> allowedProducers;
+    private final TransferEventQuarantinePort quarantine;
 
     @Autowired
     public TransferCreatedKafkaListener(
             TransferCreatedEventConsumer consumer,
-            @Value("${notification.events.allowed-producers:transaction-service}") String allowedProducers) {
-        this(consumer, parseAllowedProducers(allowedProducers));
+            @Value("${notification.events.allowed-producers:transaction-service}") String allowedProducers,
+            TransferEventQuarantinePort quarantine) {
+        this(consumer, parseAllowedProducers(allowedProducers), quarantine);
     }
 
     public TransferCreatedKafkaListener(TransferCreatedEventConsumer consumer, Set<String> allowedProducers) {
+        this(consumer, allowedProducers, record -> {});
+    }
+
+    TransferCreatedKafkaListener(
+            TransferCreatedEventConsumer consumer,
+            Set<String> allowedProducers,
+            TransferEventQuarantinePort quarantine) {
         this.consumer = consumer;
         this.allowedProducers = Set.copyOf(allowedProducers);
+        this.quarantine = quarantine;
         if (this.allowedProducers.isEmpty()) {
             throw new IllegalArgumentException("at least one allowed producer is required");
         }
@@ -54,23 +66,29 @@ public class TransferCreatedKafkaListener {
             throw new InvalidTransferEventException("Kafka record must not be null");
         }
 
-        var producer = header(record, PRODUCER);
-        if (!allowedProducers.contains(producer)) {
-            throw new InvalidTransferEventException("producer is not trusted for transfer-created events");
+        try {
+            var producer = header(record, PRODUCER);
+            if (!allowedProducers.contains(producer)) {
+                throw new InvalidTransferEventException("producer is not trusted for transfer-created events");
+            }
+            var schemaVersion = header(record, SCHEMA_VERSION);
+            if (!SUPPORTED_SCHEMA_VERSION.equals(schemaVersion)) {
+                throw new InvalidTransferEventException(
+                        "unsupported transfer-created schema version: " + schemaVersion);
+            }
+            var event = new TransferCreatedEvent(
+                    header(record, EVENT_ID),
+                    header(record, CORRELATION_ID),
+                    header(record, CAUSATION_ID),
+                    producer,
+                    schemaVersion,
+                    occurredAt(record),
+                    payload(record));
+            return consumer.consume(event);
+        } catch (InvalidTransferEventException exception) {
+            quarantine.quarantine(TransferEventQuarantine.fromKafkaRecord(record, exception.getMessage()));
+            throw exception;
         }
-        var schemaVersion = header(record, SCHEMA_VERSION);
-        if (!SUPPORTED_SCHEMA_VERSION.equals(schemaVersion)) {
-            throw new InvalidTransferEventException("unsupported transfer-created schema version: " + schemaVersion);
-        }
-        var event = new TransferCreatedEvent(
-                header(record, EVENT_ID),
-                header(record, CORRELATION_ID),
-                header(record, CAUSATION_ID),
-                producer,
-                schemaVersion,
-                occurredAt(record),
-                payload(record));
-        return consumer.consume(event);
     }
 
     private String payload(ConsumerRecord<String, String> record) {
