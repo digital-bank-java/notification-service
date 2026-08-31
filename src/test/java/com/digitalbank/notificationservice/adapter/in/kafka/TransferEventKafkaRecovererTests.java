@@ -12,6 +12,7 @@ import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.apache.kafka.common.header.internals.RecordHeaders;
 import org.apache.kafka.common.record.TimestampType;
 import org.junit.jupiter.api.Test;
+import org.springframework.kafka.listener.ListenerExecutionFailedException;
 
 class TransferEventKafkaRecovererTests {
 
@@ -28,8 +29,19 @@ class TransferEventKafkaRecovererTests {
             assertThat(entry.topic()).isEqualTo("events.transfer.created.v1");
             assertThat(entry.partition()).isEqualTo(2);
             assertThat(entry.offset()).isEqualTo(17L);
-            assertThat(entry.reason()).contains("retry exhaustion", "IllegalStateException");
+            assertThat(entry.reason()).contains("retry exhaustion", "IllegalStateException", "database unavailable");
         });
+    }
+
+    @Test
+    void doesNotQuarantineTerminalCauseWrappedByListenerExecutionException() {
+        var quarantine = new InMemoryQuarantine();
+        var recoverer = new TransferEventKafkaRecoverer(quarantine);
+        var terminal = new InvalidTransferEventException("payload invalid");
+
+        recoverer.accept(record(), new ListenerExecutionFailedException("listener failed", terminal));
+
+        assertThat(quarantine.records()).isEmpty();
     }
 
     private ConsumerRecord<String, String> record() {
