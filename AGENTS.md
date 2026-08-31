@@ -2,18 +2,19 @@
 
 ## Repository Purpose
 
-This repository owns the deployable notification-service runtime foundation
-for the Digital Bank Java platform. The current service exposes only framework
-health endpoints and service-owned OpenAPI metadata.
+This repository owns the deployable notification-service runtime for the Digital
+Bank Java platform. It exposes framework health endpoints, service-owned
+OpenAPI metadata, and an opt-in transfer-created Kafka consumer with a durable
+PostgreSQL inbox, notification work row, and quarantine path.
 
 ## Scope
 
-Notification templates, delivery providers, provider-backed retries,
-persistence, database migrations, gateway routes, and business endpoints are
-tracked follow-up work and must not be added to this foundation. The tracked
-transfer-created consumer slice may add only the validated inbound Kafka
-boundary and replay/conflict foundation; it must not invent notification
-content or call an external provider.
+Notification templates, delivery providers, provider-backed retries, gateway
+routes, and business endpoints are tracked follow-up work and must not be added
+to this service slice. The transfer-created consumer owns its validated inbound
+Kafka boundary, durable inbox/work persistence, conflict quarantine, and
+retry-exhaustion recovery; it must not invent notification content or call an
+external provider.
 
 Keep provider credentials, tokens, and secrets out of source control.
 
@@ -39,9 +40,13 @@ The current delivery foundation is transport-neutral. Use
 correlation, idempotency-key replay/conflict handling, and deterministic
 retryable versus terminal outcome classification. The current registry is
 process-local and intentionally temporary; do not treat it as durable
-production state. Provider adapters, credentials, message content, and
-persistence belong to later tracked tasks. The transfer-created consumer's
-registry is also process-local and must not be treated as durable inbox state.
+production state. Provider adapters, credentials, message content, and provider
+retry execution belong to later tracked tasks. The transfer-created consumer
+uses PostgreSQL as the durable inbox and quarantine state. Its Kafka error
+handler retries retryable failures and sends exhausted records through the
+quarantine port before allowing offset recovery. Quarantine stores bounded
+metadata and a payload hash, never the raw payload; payload re-drive is a
+tracked follow-up.
 
 ## Local Commands
 

@@ -6,6 +6,9 @@ import com.digitalbank.notificationservice.application.event.TransferCreatedEven
 import com.digitalbank.notificationservice.application.event.TransferCreatedEventConsumer;
 import com.digitalbank.notificationservice.application.event.TransferEventConflictException;
 import com.digitalbank.notificationservice.application.event.TransferEventConsumptionResult;
+import com.digitalbank.notificationservice.application.event.TransferEventQuarantine;
+import com.digitalbank.notificationservice.application.event.TransferEventQuarantinePort;
+import com.digitalbank.notificationservice.application.event.TransferEventSource;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.net.URI;
@@ -45,6 +48,9 @@ class NotificationServiceApplicationIT {
 
     @Autowired
     private JdbcTemplate jdbcTemplate;
+
+    @Autowired
+    private TransferEventQuarantinePort quarantine;
 
     @Test
     void healthEndpointReportsUp() throws Exception {
@@ -155,7 +161,8 @@ class NotificationServiceApplicationIT {
 
         consumer.consume(original);
 
-        org.assertj.core.api.Assertions.assertThatThrownBy(() -> consumer.consume(changed))
+        org.assertj.core.api.Assertions.assertThatThrownBy(
+                        () -> consumer.consume(changed, new TransferEventSource("events.transfer.created.v1", 4, 21L)))
                 .isInstanceOf(TransferEventConflictException.class);
 
         assertThat(jdbcTemplate.queryForObject(
@@ -168,6 +175,62 @@ class NotificationServiceApplicationIT {
                         Integer.class,
                         original.eventId()))
                 .isEqualTo(1);
+        assertThat(jdbcTemplate.queryForObject(
+                        "select topic from transfer_event_quarantine where event_id = ?",
+                        String.class,
+                        original.eventId()))
+                .isEqualTo("events.transfer.created.v1");
+        assertThat(jdbcTemplate.queryForObject(
+                        "select kafka_partition from transfer_event_quarantine where event_id = ?",
+                        Integer.class,
+                        original.eventId()))
+                .isEqualTo(4);
+        assertThat(jdbcTemplate.queryForObject(
+                        "select kafka_offset from transfer_event_quarantine where event_id = ?",
+                        Long.class,
+                        original.eventId()))
+                .isEqualTo(21L);
+    }
+
+    @Test
+    void concurrentIdenticalQuarantineWritesAreDatabaseIdempotent() throws Exception {
+        var event = new TransferCreatedEvent(
+                "it-quarantine-race-1",
+                "it-transfer-quarantine-race-1",
+                "it-request-quarantine-race-1",
+                "transaction-service",
+                "1.0.0",
+                Instant.parse("2026-08-31T10:15:30Z"),
+                "{\"transferId\":\"it-transfer-quarantine-race-1\"}");
+        var record = TransferEventQuarantine.fromEvent(event, "retry exhaustion: database unavailable");
+        var executor = Executors.newFixedThreadPool(2);
+
+        try {
+            executor.invokeAll(List.of(
+                            (Callable<Void>) () -> {
+                                quarantine.quarantine(record);
+                                return null;
+                            },
+                            (Callable<Void>) () -> {
+                                quarantine.quarantine(record);
+                                return null;
+                            }))
+                    .forEach(future -> {
+                        try {
+                            future.get();
+                        } catch (Exception exception) {
+                            throw new AssertionError(exception);
+                        }
+                    });
+
+            assertThat(jdbcTemplate.queryForObject(
+                            "select count(*) from transfer_event_quarantine where quarantine_key = ?",
+                            Integer.class,
+                            record.quarantineKey()))
+                    .isEqualTo(1);
+        } finally {
+            executor.shutdownNow();
+        }
     }
 
     private HttpResponse<String> get(String path) throws Exception {

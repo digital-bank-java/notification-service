@@ -67,6 +67,19 @@ transaction. Conflicting or invalid events cross an explicit quarantine
 boundary that stores identifiers, hashes, Kafka metadata, and a reason, but
 never the raw event payload.
 
+Retryable listener failures are retried twice with a one-second fixed backoff.
+After retry exhaustion, an explicit recoverer writes the Kafka record metadata,
+payload hash, and failure reason to the same PostgreSQL quarantine table in an
+independent transaction. Kafka offset recovery occurs only after that durable
+write succeeds, so a database or application failure is not silently
+acknowledged. Invalid and conflict records are already quarantined by their
+originating path and are not written a second time by the recoverer.
+
+Quarantine is an evidence and operator-review path, not a replay queue. The
+current contract intentionally does not persist raw event payloads. A durable
+payload store and re-drive workflow are deferred to a follow-up issue before
+operators need to replay exhausted records from this service.
+
 Notification construction, provider delivery, and provider-backed retry
 execution remain later tracked work after the governed event schema is
 finalized.

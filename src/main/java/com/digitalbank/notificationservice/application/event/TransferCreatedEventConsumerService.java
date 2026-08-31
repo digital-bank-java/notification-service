@@ -22,6 +22,12 @@ public class TransferCreatedEventConsumerService implements TransferCreatedEvent
     @Override
     @Transactional
     public TransferEventConsumptionResult consume(TransferCreatedEvent event) {
+        return consume(event, null);
+    }
+
+    @Override
+    @Transactional
+    public TransferEventConsumptionResult consume(TransferCreatedEvent event, TransferEventSource source) {
         if (event == null) {
             throw new IllegalArgumentException("event must not be null");
         }
@@ -32,7 +38,7 @@ public class TransferCreatedEventConsumerService implements TransferCreatedEvent
             var accepted = existing.get();
             if (!accepted.fingerprint().equals(event.fingerprint())) {
                 quarantine.quarantine(TransferEventQuarantine.fromEvent(
-                        event, "eventId is already associated with a different fingerprint"));
+                        event, "eventId is already associated with a different fingerprint", source));
                 throw new TransferEventConflictException("eventId is already associated with a different event");
             }
             return new TransferEventConsumptionResult(

@@ -1,7 +1,9 @@
 package com.digitalbank.notificationservice.configuration;
 
 import com.digitalbank.notificationservice.adapter.in.kafka.InvalidTransferEventException;
+import com.digitalbank.notificationservice.adapter.in.kafka.TransferEventKafkaRecoverer;
 import com.digitalbank.notificationservice.application.event.TransferEventConflictException;
+import com.digitalbank.notificationservice.application.event.TransferEventQuarantinePort;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -16,8 +18,13 @@ import org.springframework.util.backoff.FixedBackOff;
 public class KafkaConsumerConfiguration {
 
     @Bean
-    public CommonErrorHandler transferCreatedKafkaErrorHandler() {
-        var errorHandler = new DefaultErrorHandler(new FixedBackOff(1000L, 2L));
+    public TransferEventKafkaRecoverer transferEventKafkaRecoverer(TransferEventQuarantinePort quarantine) {
+        return new TransferEventKafkaRecoverer(quarantine);
+    }
+
+    @Bean
+    public CommonErrorHandler transferCreatedKafkaErrorHandler(TransferEventKafkaRecoverer recoverer) {
+        var errorHandler = new DefaultErrorHandler(recoverer, new FixedBackOff(1000L, 2L));
         errorHandler.addNotRetryableExceptions(
                 InvalidTransferEventException.class, TransferEventConflictException.class);
         return errorHandler;

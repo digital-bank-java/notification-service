@@ -23,6 +23,11 @@ public record TransferEventQuarantine(
         Instant quarantinedAt) {
 
     public static TransferEventQuarantine fromEvent(TransferCreatedEvent event, String reason) {
+        return fromEvent(event, reason, null);
+    }
+
+    public static TransferEventQuarantine fromEvent(
+            TransferCreatedEvent event, String reason, TransferEventSource source) {
         return create(
                 event.eventId(),
                 event.fingerprint(),
@@ -30,9 +35,9 @@ public record TransferEventQuarantine(
                 event.causationId(),
                 event.producer(),
                 event.schemaVersion(),
-                null,
-                null,
-                null,
+                source == null ? null : source.topic(),
+                source == null ? null : source.partition(),
+                source == null ? null : source.offset(),
                 reason);
     }
 
@@ -45,7 +50,7 @@ public record TransferEventQuarantine(
                 header(record, "causation-id"),
                 header(record, "producer"),
                 header(record, "schema-version"),
-                record.topic(),
+                TransferEventMetadataLimits.bounded(record.topic(), TransferEventMetadataLimits.TOPIC),
                 record.partition(),
                 record.offset(),
                 reason);
@@ -70,19 +75,19 @@ public record TransferEventQuarantine(
                 String.valueOf(topic),
                 String.valueOf(partition),
                 String.valueOf(offset),
-                reason));
+                String.valueOf(reason)));
         return new TransferEventQuarantine(
                 key,
-                eventId,
+                TransferEventMetadataLimits.bounded(eventId, TransferEventMetadataLimits.EVENT_ID),
                 fingerprint,
-                correlationId,
-                causationId,
-                producer,
-                schemaVersion,
-                topic,
+                TransferEventMetadataLimits.bounded(correlationId, TransferEventMetadataLimits.CORRELATION_ID),
+                TransferEventMetadataLimits.bounded(causationId, TransferEventMetadataLimits.CAUSATION_ID),
+                TransferEventMetadataLimits.bounded(producer, TransferEventMetadataLimits.PRODUCER),
+                TransferEventMetadataLimits.bounded(schemaVersion, TransferEventMetadataLimits.SCHEMA_VERSION),
+                TransferEventMetadataLimits.bounded(topic, TransferEventMetadataLimits.TOPIC),
                 partition,
                 offset,
-                reason,
+                boundedReason(reason),
                 quarantinedAt);
     }
 
@@ -90,7 +95,18 @@ public record TransferEventQuarantine(
         Header header = record.headers().lastHeader(name);
         return header == null || header.value() == null
                 ? null
-                : new String(header.value(), StandardCharsets.UTF_8).trim();
+                : TransferEventMetadataLimits.bounded(
+                        new String(header.value(), StandardCharsets.UTF_8).trim(),
+                        TransferEventMetadataLimits.forHeader(name));
+    }
+
+    private static String boundedReason(String reason) {
+        if (reason == null) {
+            return "unknown quarantine reason";
+        }
+        return reason.length() <= TransferEventMetadataLimits.REASON
+                ? reason
+                : reason.substring(0, TransferEventMetadataLimits.REASON);
     }
 
     private static String digest(String value) {
