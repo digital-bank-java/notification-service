@@ -84,6 +84,21 @@ class TransferCreatedKafkaListenerTests {
         });
     }
 
+    @Test
+    void oversizedHeaderIsRejectedAndQuarantinedWithBoundedMetadata() {
+        var quarantine = new InMemoryQuarantine();
+        var listener =
+                new TransferCreatedKafkaListener(new InMemoryConsumer(), Set.of("transaction-service"), quarantine);
+        var record = record("evt-1", "c".repeat(201), "request-1", "{}");
+
+        assertThatThrownBy(() -> listener.onMessage(record)).isInstanceOf(InvalidTransferEventException.class);
+        assertThat(quarantine.records()).singleElement().satisfies(entry -> {
+            assertThat(entry.eventId()).isEqualTo("evt-1");
+            assertThat(entry.correlationId()).isNull();
+            assertThat(entry.reason()).contains("correlation-id must be at most 200 characters");
+        });
+    }
+
     private ConsumerRecord<String, String> record(
             String eventId, String correlationId, String causationId, String payload) {
         var headers = new RecordHeaders()

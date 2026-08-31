@@ -13,6 +13,7 @@ import com.digitalbank.notificationservice.application.event.TransferEventInbox;
 import com.digitalbank.notificationservice.application.event.TransferEventInboxPort;
 import com.digitalbank.notificationservice.application.event.TransferEventQuarantine;
 import com.digitalbank.notificationservice.application.event.TransferEventQuarantinePort;
+import com.digitalbank.notificationservice.application.event.TransferEventSource;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -71,7 +72,9 @@ class TransferCreatedEventConsumerTests {
         var changed = event("evt-1", "transfer-1", "request-1", "{\"transferId\":\"transfer-2\"}");
         consumer.consume(original);
 
-        assertThatThrownBy(() -> consumer.consume(changed)).isInstanceOf(TransferEventConflictException.class);
+        assertThatThrownBy(
+                        () -> consumer.consume(changed, new TransferEventSource("events.transfer.created.v1", 3, 17L)))
+                .isInstanceOf(TransferEventConflictException.class);
 
         assertThat(inbox.events().get("evt-1").fingerprint()).isEqualTo(original.fingerprint());
         assertThat(work.events()).hasSize(1);
@@ -79,6 +82,9 @@ class TransferCreatedEventConsumerTests {
             assertThat(record.eventId()).isEqualTo("evt-1");
             assertThat(record.fingerprint()).isEqualTo(changed.fingerprint());
             assertThat(record.correlationId()).isEqualTo("transfer-1");
+            assertThat(record.topic()).isEqualTo("events.transfer.created.v1");
+            assertThat(record.partition()).isEqualTo(3);
+            assertThat(record.offset()).isEqualTo(17L);
         });
     }
 

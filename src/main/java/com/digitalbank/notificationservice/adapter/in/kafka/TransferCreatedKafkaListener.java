@@ -3,8 +3,10 @@ package com.digitalbank.notificationservice.adapter.in.kafka;
 import com.digitalbank.notificationservice.application.event.TransferCreatedEvent;
 import com.digitalbank.notificationservice.application.event.TransferCreatedEventConsumer;
 import com.digitalbank.notificationservice.application.event.TransferEventConsumptionResult;
+import com.digitalbank.notificationservice.application.event.TransferEventMetadataLimits;
 import com.digitalbank.notificationservice.application.event.TransferEventQuarantine;
 import com.digitalbank.notificationservice.application.event.TransferEventQuarantinePort;
+import com.digitalbank.notificationservice.application.event.TransferEventSource;
 import java.time.Instant;
 import java.util.Arrays;
 import java.util.Set;
@@ -84,7 +86,8 @@ public class TransferCreatedKafkaListener {
                     schemaVersion,
                     occurredAt(record),
                     payload(record));
-            return consumer.consume(event);
+            return consumer.consume(
+                    event, new TransferEventSource(record.topic(), record.partition(), record.offset()));
         } catch (InvalidTransferEventException exception) {
             quarantine.quarantine(TransferEventQuarantine.fromKafkaRecord(record, exception.getMessage()));
             throw exception;
@@ -114,6 +117,10 @@ public class TransferCreatedKafkaListener {
         var value = new String(header.value(), java.nio.charset.StandardCharsets.UTF_8).trim();
         if (value.isBlank()) {
             throw new InvalidTransferEventException("blank required Kafka header: " + name);
+        }
+        var maxLength = TransferEventMetadataLimits.forHeader(name);
+        if (value.length() > maxLength) {
+            throw new InvalidTransferEventException(name + " must be at most " + maxLength + " characters");
         }
         return value;
     }
