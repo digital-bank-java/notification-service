@@ -19,7 +19,7 @@ import org.springframework.stereotype.Component;
 @ConditionalOnProperty(name = "notification.events.transfer-created.enabled", havingValue = "true")
 public class TransferCreatedKafkaListener {
 
-    private static final String SUPPORTED_SCHEMA_VERSION = "1";
+    private static final String SUPPORTED_SCHEMA_VERSION = "1.0.0";
     private static final String EVENT_ID = "event-id";
     private static final String CORRELATION_ID = "correlation-id";
     private static final String CAUSATION_ID = "causation-id";
