@@ -48,9 +48,9 @@ class TransferCreatedKafkaListenerTests {
                 .add("correlation-id", bytes("transfer-1"))
                 .add("causation-id", bytes("request-1"))
                 .add("producer", bytes("transaction-service"))
-                .add("schema-version", bytes("1"));
+                .add("schema-version", bytes("1.0.0"));
         var record = new ConsumerRecord<String, String>(
-                "transfer.created.v1",
+                "events.transfer.created.v1",
                 0,
                 0L,
                 0L,
@@ -72,10 +72,10 @@ class TransferCreatedKafkaListenerTests {
                 .add("correlation-id", bytes(correlationId))
                 .add("causation-id", bytes(causationId))
                 .add("producer", bytes("transaction-service"))
-                .add("schema-version", bytes("1"))
+                .add("schema-version", bytes("1.0.0"))
                 .add("occurred-at", bytes("2026-08-31T10:15:30Z"));
         return new ConsumerRecord<>(
-                "transfer.created.v1",
+                "events.transfer.created.v1",
                 0,
                 0L,
                 0L,
