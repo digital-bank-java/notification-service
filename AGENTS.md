@@ -28,6 +28,14 @@ its `service.port` as `SERVER_PORT`, so the deployment port is authoritative
 even when Config Server is reachable; config-repo should keep its matching
 `server.port` default for non-Helm startup.
 
+The current delivery foundation is transport-neutral. Use
+`NotificationDeliveryInputPort` and `NotificationDeliveryService` for
+correlation, idempotency-key replay/conflict handling, and deterministic
+retryable versus terminal outcome classification. The current registry is
+process-local and intentionally temporary; do not treat it as durable
+production state. Kafka consumers, provider adapters, credentials, message
+content, and persistence belong to later tracked tasks.
+
 ## Local Commands
 
 Normal startup requires Config Server and the `sit` profile. Automated tests
