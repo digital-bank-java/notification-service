@@ -9,10 +9,13 @@ This slice establishes a deployable service boundary only:
 - Config Client integration for externalized runtime configuration;
 - Actuator health, liveness, and readiness endpoints;
 - service-owned OpenAPI metadata;
+- an opt-in Kafka consumer boundary for governed transfer-created events;
 - container and Helm packaging for local Kubernetes SIT;
 - Maven verification with Spotless, JaCoCo, Surefire, and Failsafe.
 
-Notification templates, delivery providers, Kafka consumers, provider-backed retry execution, persistence, and user-facing notification behavior are future work. No notification business endpoint is exposed by this scaffold.
+Notification templates, delivery providers, provider-backed retry execution,
+persistence, and user-facing notification behavior are future work. No
+notification business endpoint is exposed by this scaffold.
 
 ## Delivery Lifecycle Foundation
 
@@ -40,8 +43,38 @@ Delivery outcomes are explicit:
 A retryable failure may be followed by another attempt. A delivered or
 terminally failed delivery cannot be changed by a later attempt. Provider
 adapters will classify real provider responses and call this boundary in a
-future slice. No provider credentials, message content, Kafka consumer, or
-external delivery call belongs in this foundation.
+future slice. No provider credentials, message content, or external delivery
+call belongs in this delivery foundation.
+
+## Transfer Event Consumer Foundation
+
+The service has an opt-in inbound Kafka adapter for the versioned
+`events.transfer.created.v1` topic. It validates the event envelope before
+handing the event to the application boundary:
+
+- `event-id` identifies the event for replay detection;
+- `correlation-id` links the event to the transfer workflow;
+- `causation-id` identifies the command or event that caused it;
+- `producer` is checked against the configured producer allowlist;
+- `schema-version` is checked against the supported version;
+- `occurred-at` must be an ISO-8601 timestamp.
+
+The consumer reports an exact duplicate as a replay and rejects a reused event
+ID with different content as a conflict. The current consumed-event registry
+is process-local foundation state. Durable inbox storage, notification
+construction, provider delivery, and dead-letter persistence belong to later
+tracked work after the governed event schema is finalized.
+
+Enable consumption explicitly with the Helm SIT values or equivalent
+environment variables:
+
+```properties
+NOTIFICATION_TRANSFER_EVENTS_ENABLED=true
+NOTIFICATION_TRANSFER_EVENTS_TOPIC=events.transfer.created.v1
+NOTIFICATION_EVENTS_ALLOWED_PRODUCERS=transaction-service
+KAFKA_BOOTSTRAP_SERVERS=kafka.digital-bank-sit.svc.cluster.local:9092
+KAFKA_CONSUMER_GROUP_ID=notification-service
+```
 
 ## Responsibilities And Boundaries
 

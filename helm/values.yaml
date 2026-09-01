@@ -13,6 +13,14 @@ runtime:
   profile: default
   configServerUrl: http://config-server:8888
 
+kafka:
+  bootstrapServers: localhost:9092
+  consumerGroup: notification-service
+  allowedProducers: transaction-service
+  transferCreated:
+    enabled: false
+    topic: events.transfer.created.v1
+
 service:
   type: ClusterIP
   port: 8088
