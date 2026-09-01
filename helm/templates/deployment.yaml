@@ -32,6 +32,18 @@ spec:
               value: {{ .Values.runtime.configServerUrl | quote }}
             - name: SERVER_PORT
               value: {{ .Values.service.port | quote }}
+            - name: SPRING_DATASOURCE_URL
+              value: {{ printf "jdbc:postgresql://%s:%v/%s" .Values.database.host .Values.database.port .Values.database.name | quote }}
+            - name: SPRING_DATASOURCE_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.database.secretName | quote }}
+                  key: {{ .Values.database.usernameKey | quote }}
+            - name: SPRING_DATASOURCE_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.database.secretName | quote }}
+                  key: {{ .Values.database.passwordKey | quote }}
             - name: NOTIFICATION_TRANSFER_EVENTS_ENABLED
               value: {{ .Values.kafka.transferCreated.enabled | quote }}
             - name: NOTIFICATION_TRANSFER_EVENTS_TOPIC
