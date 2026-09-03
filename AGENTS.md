@@ -8,9 +8,12 @@ health endpoints and service-owned OpenAPI metadata.
 
 ## Scope
 
-Notification templates, delivery providers, Kafka consumers, retries,
+Notification templates, delivery providers, provider-backed retries,
 persistence, database migrations, gateway routes, and business endpoints are
-tracked follow-up work and must not be added to this bootstrap.
+tracked follow-up work and must not be added to this foundation. The tracked
+transfer-created consumer slice may add only the validated inbound Kafka
+boundary and replay/conflict foundation; it must not invent notification
+content or call an external provider.
 
 Keep provider credentials, tokens, and secrets out of source control.
 
@@ -20,13 +23,25 @@ Use `sit`, `uat`, and `prod` as the formal runtime profiles. SIT runs on local D
 
 ## Architecture
 
-Keep notification policy and orchestration in application/domain code. HTTP and future Kafka consumers are inbound adapters. Provider clients and persistence are outbound adapters. Kafka consumer behavior is separate from this bootstrap.
+Keep notification policy and orchestration in application/domain code. HTTP and
+Kafka consumers are inbound adapters. Provider clients and persistence are
+outbound adapters. The transfer-created consumer validates the governed event
+envelope, then delegates to the application boundary.
 
 The service name and Config Server application name are
 `notification-service`. The default and SIT HTTP port is `8088`. Helm passes
 its `service.port` as `SERVER_PORT`, so the deployment port is authoritative
 even when Config Server is reachable; config-repo should keep its matching
 `server.port` default for non-Helm startup.
+
+The current delivery foundation is transport-neutral. Use
+`NotificationDeliveryInputPort` and `NotificationDeliveryService` for
+correlation, idempotency-key replay/conflict handling, and deterministic
+retryable versus terminal outcome classification. The current registry is
+process-local and intentionally temporary; do not treat it as durable
+production state. Provider adapters, credentials, message content, and
+persistence belong to later tracked tasks. The transfer-created consumer's
+registry is also process-local and must not be treated as durable inbox state.
 
 ## Local Commands
 
