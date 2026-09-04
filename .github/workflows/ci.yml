@@ -14,30 +14,17 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  test:
-    name: Maven test phases
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
-    steps:
-      - name: Check out repository
-        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
-      - name: Set up Java
-        uses: actions/setup-java@ad2b38190b15e4d6bdf0c97fb4fca8412226d287 # v5.3.0
-        with:
-          distribution: temurin
-          java-version: "21"
-          cache: maven
-      - name: Run unit tests
-        run: ./mvnw --batch-mode --no-transfer-progress test
-      - name: Run integration and package verification
-        run: ./mvnw --batch-mode --no-transfer-progress verify -DskipUnitTests=true
-      - name: Check formatting
-        run: git diff --check
+  verify:
+    name: Maven verification
+    uses: digital-bank-java/.github/.github/workflows/java-maven-verify.yml@61a2df2309661a19d15f1428b79fd6fafc2bb01f
+    permissions:
+      contents: read
 
   helm:
     name: Helm validation
     runs-on: ubuntu-latest
     timeout-minutes: 5
+
     steps:
       - name: Check out repository
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
@@ -59,7 +46,7 @@ jobs:
   container:
     name: Container build and smoke test
     needs:
-      - test
+      - verify
       - helm
     runs-on: ubuntu-latest
     timeout-minutes: 15
