@@ -170,7 +170,7 @@ uses the PostgreSQL service supplied by the deployment environment.
 Build the image:
 
 ```bash
-docker build -t digital-bank-java/notification-service:0.0.1 .
+docker build -t digital-bank-java/notification-service:0.0.2 .
 ```
 
 Verify its runtime user:
@@ -178,7 +178,7 @@ Verify its runtime user:
 ```bash
 docker image inspect \
   --format '{{.Config.User}}' \
-  digital-bank-java/notification-service:0.0.1
+  digital-bank-java/notification-service:0.0.2
 ```
 
 Expected value:
