@@ -6,7 +6,7 @@ revisionHistoryLimit: 3
 
 image:
   repository: digital-bank-java/notification-service
-  tag: "0.0.1"
+  tag: "0.0.2"
   pullPolicy: IfNotPresent
 
 runtime:
