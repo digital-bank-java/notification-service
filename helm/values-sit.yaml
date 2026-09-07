@@ -11,3 +11,5 @@ kafka:
   bootstrapServers: kafka.digital-bank-sit.svc.cluster.local:9092
   transferCreated:
     enabled: true
+  paymentState:
+    enabled: true

@@ -28,6 +28,10 @@ kafka:
   transferCreated:
     enabled: false
     topic: events.transfer.created.v1
+  paymentState:
+    enabled: false
+    topic: payment.instruction.state.v1
+    allowedProducers: payment-service
 
 service:
   type: ClusterIP
