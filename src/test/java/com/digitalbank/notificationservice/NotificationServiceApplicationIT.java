@@ -33,6 +33,7 @@ import org.testcontainers.postgresql.PostgreSQLContainer;
 @SpringBootTest(
         webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT,
         properties = {
+            "notification.events.transfer-created.enabled=true",
             "notification.events.payment-state.enabled=true",
             "spring.kafka.bootstrap-servers=localhost:9092",
             "spring.kafka.listener.auto-startup=false"

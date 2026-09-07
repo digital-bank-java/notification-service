@@ -7,6 +7,7 @@ import com.digitalbank.notificationservice.application.event.TransferEventQuaran
 import java.util.HashMap;
 import org.apache.kafka.clients.consumer.ConsumerConfig;
 import org.apache.kafka.common.serialization.StringDeserializer;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Bean;
@@ -53,7 +54,8 @@ public class KafkaConsumerConfiguration {
 
     @Bean
     public ConcurrentKafkaListenerContainerFactory<String, String> transferCreatedKafkaListenerContainerFactory(
-            ConsumerFactory<String, String> consumerFactory, CommonErrorHandler transferCreatedKafkaErrorHandler) {
+            @Qualifier("transferCreatedConsumerFactory") ConsumerFactory<String, String> consumerFactory,
+            CommonErrorHandler transferCreatedKafkaErrorHandler) {
         var factory = new ConcurrentKafkaListenerContainerFactory<String, String>();
         factory.setConsumerFactory(consumerFactory);
         factory.setCommonErrorHandler(transferCreatedKafkaErrorHandler);
