@@ -2,6 +2,7 @@ package com.digitalbank.notificationservice;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import com.digitalbank.notificationservice.adapter.in.kafka.PaymentInstructionStateKafkaListener;
 import com.digitalbank.notificationservice.application.event.TransferCreatedEvent;
 import com.digitalbank.notificationservice.application.event.TransferCreatedEventConsumer;
 import com.digitalbank.notificationservice.application.event.TransferEventConflictException;
@@ -29,7 +30,13 @@ import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 import org.testcontainers.postgresql.PostgreSQLContainer;
 
-@SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
+@SpringBootTest(
+        webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT,
+        properties = {
+            "notification.events.payment-state.enabled=true",
+            "spring.kafka.bootstrap-servers=localhost:9092",
+            "spring.kafka.listener.auto-startup=false"
+        })
 @Testcontainers
 class NotificationServiceApplicationIT {
 
@@ -47,6 +54,9 @@ class NotificationServiceApplicationIT {
     private TransferCreatedEventConsumer consumer;
 
     @Autowired
+    private PaymentInstructionStateKafkaListener paymentStateListener;
+
+    @Autowired
     private JdbcTemplate jdbcTemplate;
 
     @Autowired
@@ -54,6 +64,7 @@ class NotificationServiceApplicationIT {
 
     @Test
     void healthEndpointReportsUp() throws Exception {
+        assertThat(paymentStateListener).isNotNull();
         var response = get("/actuator/health");
 
         assertThat(response.statusCode()).isEqualTo(200);

@@ -30,6 +30,7 @@ import org.springframework.stereotype.Component;
 @ConditionalOnProperty(name = "notification.events.payment-state.enabled", havingValue = "true")
 public class PaymentInstructionStateKafkaListener {
 
+    private static final ObjectMapper DEFAULT_OBJECT_MAPPER = new ObjectMapper().findAndRegisterModules();
     static final String SUPPORTED_EVENT_TYPE = "PaymentInstructionStateChanged.v1";
     static final String SUPPORTED_SCHEMA_VERSION = "1.0.0";
     private static final String EVENT_ID = "event-id";
@@ -49,10 +50,9 @@ public class PaymentInstructionStateKafkaListener {
     @Autowired
     public PaymentInstructionStateKafkaListener(
             PaymentInstructionStateEventConsumer consumer,
-            ObjectMapper objectMapper,
             @Value("${notification.events.payment-state.allowed-producers:payment-service}") String allowedProducers,
             PaymentEventQuarantinePort quarantine) {
-        this(consumer, objectMapper, parseAllowedProducers(allowedProducers), quarantine);
+        this(consumer, DEFAULT_OBJECT_MAPPER, parseAllowedProducers(allowedProducers), quarantine);
     }
 
     public PaymentInstructionStateKafkaListener(
