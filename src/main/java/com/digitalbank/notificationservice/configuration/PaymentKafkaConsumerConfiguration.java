@@ -1,9 +1,9 @@
 package com.digitalbank.notificationservice.configuration;
 
-import com.digitalbank.notificationservice.adapter.in.kafka.InvalidTransferEventException;
-import com.digitalbank.notificationservice.adapter.in.kafka.TransferEventKafkaRecoverer;
-import com.digitalbank.notificationservice.application.event.TransferEventConflictException;
-import com.digitalbank.notificationservice.application.event.TransferEventQuarantinePort;
+import com.digitalbank.notificationservice.adapter.in.kafka.InvalidPaymentEventException;
+import com.digitalbank.notificationservice.adapter.in.kafka.PaymentEventKafkaRecoverer;
+import com.digitalbank.notificationservice.application.payment.PaymentEventConflictException;
+import com.digitalbank.notificationservice.application.payment.PaymentEventQuarantinePort;
 import java.util.HashMap;
 import org.apache.kafka.clients.consumer.ConsumerConfig;
 import org.apache.kafka.common.serialization.StringDeserializer;
@@ -20,11 +20,11 @@ import org.springframework.kafka.listener.DefaultErrorHandler;
 import org.springframework.util.backoff.FixedBackOff;
 
 @Configuration
-@ConditionalOnProperty(name = "notification.events.transfer-created.enabled", havingValue = "true")
-public class KafkaConsumerConfiguration {
+@ConditionalOnProperty(name = "notification.events.payment-state.enabled", havingValue = "true")
+public class PaymentKafkaConsumerConfiguration {
 
-    @Bean
-    public ConsumerFactory<String, String> transferCreatedConsumerFactory(
+    @Bean("paymentStateConsumerFactory")
+    public ConsumerFactory<String, String> paymentStateConsumerFactory(
             @Value("${spring.kafka.bootstrap-servers}") String bootstrapServers,
             @Value("${spring.kafka.consumer.group-id:notification-service}") String groupId,
             @Value("${spring.kafka.consumer.auto-offset-reset:earliest}") String autoOffsetReset,
@@ -40,25 +40,24 @@ public class KafkaConsumerConfiguration {
     }
 
     @Bean
-    public TransferEventKafkaRecoverer transferEventKafkaRecoverer(TransferEventQuarantinePort quarantine) {
-        return new TransferEventKafkaRecoverer(quarantine);
+    public PaymentEventKafkaRecoverer paymentEventKafkaRecoverer(PaymentEventQuarantinePort quarantine) {
+        return new PaymentEventKafkaRecoverer(quarantine);
     }
 
-    @Bean
-    public CommonErrorHandler transferCreatedKafkaErrorHandler(TransferEventKafkaRecoverer recoverer) {
+    @Bean("paymentStateKafkaErrorHandler")
+    public CommonErrorHandler paymentStateKafkaErrorHandler(PaymentEventKafkaRecoverer recoverer) {
         var errorHandler = new DefaultErrorHandler(recoverer, new FixedBackOff(1000L, 2L));
-        errorHandler.addNotRetryableExceptions(
-                InvalidTransferEventException.class, TransferEventConflictException.class);
+        errorHandler.addNotRetryableExceptions(InvalidPaymentEventException.class, PaymentEventConflictException.class);
         return errorHandler;
     }
 
-    @Bean
-    public ConcurrentKafkaListenerContainerFactory<String, String> transferCreatedKafkaListenerContainerFactory(
-            @Qualifier("transferCreatedConsumerFactory") ConsumerFactory<String, String> consumerFactory,
-            CommonErrorHandler transferCreatedKafkaErrorHandler) {
+    @Bean("paymentStateKafkaListenerContainerFactory")
+    public ConcurrentKafkaListenerContainerFactory<String, String> paymentStateKafkaListenerContainerFactory(
+            @Qualifier("paymentStateConsumerFactory") ConsumerFactory<String, String> consumerFactory,
+            @Qualifier("paymentStateKafkaErrorHandler") CommonErrorHandler errorHandler) {
         var factory = new ConcurrentKafkaListenerContainerFactory<String, String>();
         factory.setConsumerFactory(consumerFactory);
-        factory.setCommonErrorHandler(transferCreatedKafkaErrorHandler);
+        factory.setCommonErrorHandler(errorHandler);
         return factory;
     }
 }

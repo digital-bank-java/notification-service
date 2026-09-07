@@ -50,6 +50,12 @@ spec:
               value: {{ .Values.kafka.transferCreated.topic | quote }}
             - name: NOTIFICATION_EVENTS_ALLOWED_PRODUCERS
               value: {{ .Values.kafka.allowedProducers | quote }}
+            - name: NOTIFICATION_PAYMENT_STATE_EVENTS_ENABLED
+              value: {{ .Values.kafka.paymentState.enabled | quote }}
+            - name: NOTIFICATION_PAYMENT_STATE_EVENTS_TOPIC
+              value: {{ .Values.kafka.paymentState.topic | quote }}
+            - name: NOTIFICATION_PAYMENT_STATE_EVENTS_ALLOWED_PRODUCERS
+              value: {{ .Values.kafka.paymentState.allowedProducers | quote }}
             - name: KAFKA_BOOTSTRAP_SERVERS
               value: {{ .Values.kafka.bootstrapServers | quote }}
             - name: KAFKA_CONSUMER_GROUP_ID
