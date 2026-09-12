@@ -19,19 +19,22 @@ import org.junit.jupiter.api.Test;
 
 class TransferCreatedKafkaListenerTests {
 
+    private static final String EVENT_ID = "00000000-0000-4000-8000-000000000001";
+    private static final String TRANSFER_ID = "00000000-0000-4000-8000-000000000002";
+
     private final TransferCreatedKafkaListener listener =
             new TransferCreatedKafkaListener(new InMemoryConsumer(), Set.of("transaction-service"));
 
     @Test
     void mapsVersionedKafkaEnvelopeToTransportNeutralConsumer() {
-        var result = listener.onMessage(record("evt-1", "transfer-1", "request-1", "{\"transferId\":\"transfer-1\"}"));
+        var result = listener.onMessage(record(EVENT_ID, "transfer-1", "request-1", validPayload()));
 
-        assertThat(result).isEqualTo(new TransferEventConsumptionResult("evt-1", "transfer-1", "request-1", false));
+        assertThat(result).isEqualTo(new TransferEventConsumptionResult(EVENT_ID, "transfer-1", "request-1", false));
     }
 
     @Test
     void repeatedKafkaRecordIsReportedAsReplay() {
-        var record = record("evt-1", "transfer-1", "request-1", "{\"transferId\":\"transfer-1\"}");
+        var record = record(EVENT_ID, "transfer-1", "request-1", validPayload());
 
         listener.onMessage(record);
         assertThat(listener.onMessage(record).replayed()).isTrue();
@@ -39,7 +42,7 @@ class TransferCreatedKafkaListenerTests {
 
     @Test
     void untrustedProducerIsRejectedBeforeApplicationConsumption() {
-        var record = record("evt-1", "transfer-1", "request-1", "{\"transferId\":\"transfer-1\"}");
+        var record = record(EVENT_ID, "transfer-1", "request-1", validPayload());
         record.headers().remove("producer").add("producer", bytes("unknown-service"));
 
         assertThatThrownBy(() -> listener.onMessage(record)).isInstanceOf(InvalidTransferEventException.class);
@@ -74,11 +77,11 @@ class TransferCreatedKafkaListenerTests {
         var quarantine = new InMemoryQuarantine();
         var listener =
                 new TransferCreatedKafkaListener(new InMemoryConsumer(), Set.of("transaction-service"), quarantine);
-        var record = record("evt-1", "transfer-1", "request-1", "");
+        var record = record(EVENT_ID, "transfer-1", "request-1", "");
 
         assertThatThrownBy(() -> listener.onMessage(record)).isInstanceOf(InvalidTransferEventException.class);
         assertThat(quarantine.records()).singleElement().satisfies(entry -> {
-            assertThat(entry.eventId()).isEqualTo("evt-1");
+            assertThat(entry.eventId()).isEqualTo(EVENT_ID);
             assertThat(entry.topic()).isEqualTo("events.transfer.created.v1");
             assertThat(entry.reason()).contains("payload");
         });
@@ -89,13 +92,44 @@ class TransferCreatedKafkaListenerTests {
         var quarantine = new InMemoryQuarantine();
         var listener =
                 new TransferCreatedKafkaListener(new InMemoryConsumer(), Set.of("transaction-service"), quarantine);
-        var record = record("evt-1", "c".repeat(201), "request-1", "{}");
+        var record = record(EVENT_ID, "c".repeat(201), "request-1", validPayload());
 
         assertThatThrownBy(() -> listener.onMessage(record)).isInstanceOf(InvalidTransferEventException.class);
         assertThat(quarantine.records()).singleElement().satisfies(entry -> {
-            assertThat(entry.eventId()).isEqualTo("evt-1");
+            assertThat(entry.eventId()).isEqualTo(EVENT_ID);
             assertThat(entry.correlationId()).isNull();
             assertThat(entry.reason()).contains("correlation-id must be at most 200 characters");
+        });
+    }
+
+    @Test
+    void payloadIdentityMismatchIsQuarantinedBeforeApplicationConsumption() {
+        var consumer = new InMemoryConsumer();
+        var quarantine = new InMemoryQuarantine();
+        var listener = new TransferCreatedKafkaListener(consumer, Set.of("transaction-service"), quarantine);
+        var mismatchedPayload = validPayload().replace(EVENT_ID, "00000000-0000-4000-8000-000000000099");
+
+        assertThatThrownBy(() -> listener.onMessage(record(EVENT_ID, "transfer-1", "request-1", mismatchedPayload)))
+                .isInstanceOf(InvalidTransferEventException.class);
+        assertThat(consumer.events()).isEmpty();
+        assertThat(quarantine.records()).singleElement().satisfies(entry -> {
+            assertThat(entry.eventId()).isEqualTo(EVENT_ID);
+            assertThat(entry.reason()).contains("eventId");
+        });
+    }
+
+    @Test
+    void malformedTransferPayloadIsQuarantinedBeforeApplicationConsumption() {
+        var consumer = new InMemoryConsumer();
+        var quarantine = new InMemoryQuarantine();
+        var listener = new TransferCreatedKafkaListener(consumer, Set.of("transaction-service"), quarantine);
+
+        assertThatThrownBy(() -> listener.onMessage(record(EVENT_ID, "transfer-1", "request-1", "not-json")))
+                .isInstanceOf(InvalidTransferEventException.class);
+        assertThat(consumer.events()).isEmpty();
+        assertThat(quarantine.records()).singleElement().satisfies(entry -> {
+            assertThat(entry.eventId()).isEqualTo(EVENT_ID);
+            assertThat(entry.reason()).contains("valid JSON");
         });
     }
 
@@ -116,10 +150,34 @@ class TransferCreatedKafkaListenerTests {
                 TimestampType.CREATE_TIME,
                 -1,
                 -1,
-                correlationId,
+                TRANSFER_ID,
                 payload,
                 headers,
                 Optional.empty());
+    }
+
+    private String validPayload() {
+        return """
+                {
+                  "eventId":"%s",
+                  "eventType":"TransferCreated.v1",
+                  "schemaVersion":"1.0.0",
+                  "producer":"transaction-service",
+                  "occurredAt":"2026-08-31T10:15:30Z",
+                  "aggregateId":"%s",
+                  "correlationId":"transfer-1",
+                  "causationId":"request-1",
+                  "transactionId":"%s",
+                  "sourceAccountId":"00000000-0000-4000-8000-000000000003",
+                  "destinationAccountId":"00000000-0000-4000-8000-000000000004",
+                  "amount":"125.5000",
+                  "currency":"AED",
+                  "transferRequestId":"transfer-request-1",
+                  "reservationRequestId":"reservation-request-1",
+                  "postingRequestId":"posting-request-1",
+                  "status":"PENDING"
+                }
+                """.formatted(EVENT_ID, TRANSFER_ID, TRANSFER_ID);
     }
 
     private byte[] bytes(String value) {
@@ -130,12 +188,20 @@ class TransferCreatedKafkaListenerTests {
 
         private final Set<String> consumed = new java.util.HashSet<>();
 
+        private final List<com.digitalbank.notificationservice.application.event.TransferCreatedEvent> events =
+                new ArrayList<>();
+
         @Override
         public TransferEventConsumptionResult consume(
                 com.digitalbank.notificationservice.application.event.TransferCreatedEvent event) {
             var replayed = !consumed.add(event.eventId());
+            events.add(event);
             return new TransferEventConsumptionResult(
                     event.eventId(), event.correlationId(), event.causationId(), replayed);
+        }
+
+        List<com.digitalbank.notificationservice.application.event.TransferCreatedEvent> events() {
+            return events;
         }
     }
 
